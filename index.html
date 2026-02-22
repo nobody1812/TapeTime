@@ -1,0 +1,902 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>TapeTime — Трекер для Тейпа 🐾</title>
+
+    <!-- PWA -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#FF8C42">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="TapeTime">
+    <link rel="apple-touch-icon" href="icon-192.png">
+
+    <!-- Firebase -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --primary: #FF8C42;
+            --primary-light: #FFB085;
+            --secondary: #4ECDC4;
+            --third: #A29BFE;
+            --bg: #FFF8F2;
+            --card: #FFFFFF;
+            --text: #2D3436;
+            --text-light: #636E72;
+            --success: #00B894;
+            --warning: #FDCB6E;
+            --danger: #FF6B6B;
+            --shadow: 0 4px 15px rgba(0,0,0,0.08);
+            --radius: 16px;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            overflow-x: hidden;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .screen {
+            display: none;
+            min-height: 100vh;
+            padding: 20px;
+            padding-bottom: 100px;
+            animation: fadeIn 0.3s ease;
+        }
+        .screen.active { display: block; }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .welcome {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 40px 20px;
+            min-height: 100vh;
+        }
+        .welcome.active { display: flex; }
+
+        .welcome-logo {
+            width: 120px;
+            height: 120px;
+            background: var(--primary);
+            border-radius: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 60px;
+            margin-bottom: 24px;
+            box-shadow: 0 8px 30px rgba(255,140,66,0.3);
+        }
+
+        .welcome h1 { font-size: 32px; margin-bottom: 8px; }
+        .welcome p { color: var(--text-light); font-size: 16px; margin-bottom: 40px; }
+        .welcome-subtitle { font-size: 18px; font-weight: 600; margin-bottom: 20px; }
+
+        .user-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            width: 100%;
+            max-width: 300px;
+        }
+
+        .user-btn {
+            padding: 16px 32px;
+            border: none;
+            border-radius: var(--radius);
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            color: white;
+        }
+        .user-btn:active { transform: scale(0.96); }
+        .user-btn.u1 { background: var(--primary); box-shadow: 0 4px 15px rgba(255,140,66,0.3); }
+        .user-btn.u2 { background: var(--secondary); box-shadow: 0 4px 15px rgba(78,205,196,0.3); }
+        .user-btn.u3 { background: var(--third); box-shadow: 0 4px 15px rgba(162,155,254,0.3); }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+        .header-left h1 { font-size: 26px; }
+        .header-left p { color: var(--text-light); font-size: 14px; }
+
+        .user-badge {
+            padding: 8px 14px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 600;
+            color: white;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .user-badge:active { transform: scale(0.95); }
+        .user-badge.user1 { background: var(--primary); }
+        .user-badge.user2 { background: var(--secondary); }
+        .user-badge.user3 { background: var(--third); }
+
+        .dog-card {
+            background: var(--card);
+            border-radius: var(--radius);
+            padding: 24px;
+            box-shadow: var(--shadow);
+            text-align: center;
+            margin-bottom: 24px;
+            position: relative;
+            overflow: hidden;
+        }
+        .dog-card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, var(--primary), var(--secondary), var(--third));
+        }
+        .dog-avatar {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            background: var(--primary-light);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 40px;
+            margin: 0 auto 12px;
+            border: 3px solid var(--primary);
+            overflow: hidden;
+        }
+        .dog-avatar img {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            object-fit: cover;
+        }
+        .dog-name { font-size: 24px; font-weight: 700; margin-bottom: 4px; }
+
+        .dog-status {
+            font-size: 14px;
+            padding: 6px 14px;
+            border-radius: 20px;
+            display: inline-block;
+            font-weight: 500;
+        }
+        .status-good { background: #E8F8F5; color: var(--success); }
+        .status-warn { background: #FFF9E6; color: #E17055; }
+        .status-bad { background: #FFE8E8; color: var(--danger); }
+
+        .status-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 24px;
+        }
+        .status-card {
+            background: var(--card);
+            border-radius: var(--radius);
+            padding: 16px;
+            box-shadow: var(--shadow);
+            position: relative;
+            overflow: hidden;
+        }
+        .status-card .icon { font-size: 28px; margin-bottom: 8px; }
+        .status-card .label { font-size: 13px; color: var(--text-light); margin-bottom: 4px; }
+        .status-card .time { font-size: 15px; font-weight: 600; }
+        .status-card .who { font-size: 12px; color: var(--text-light); margin-top: 4px; }
+        .status-card .bar {
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 3px;
+        }
+        .bar-good { background: var(--success); }
+        .bar-warn { background: var(--warning); }
+        .bar-bad { background: var(--danger); }
+
+        .actions-title { font-size: 18px; font-weight: 700; margin-bottom: 16px; }
+        .actions-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+        .action-btn {
+            background: var(--card);
+            border: 2px solid transparent;
+            border-radius: var(--radius);
+            padding: 20px 16px;
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: var(--shadow);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--text);
+        }
+        .action-btn:active { transform: scale(0.95); }
+        .action-btn .action-icon { font-size: 36px; }
+
+        .popup-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 100;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .popup-overlay.active { display: flex; }
+        .popup {
+            background: var(--card);
+            border-radius: 24px;
+            padding: 32px;
+            text-align: center;
+            max-width: 320px;
+            width: 100%;
+            animation: popIn 0.3s ease;
+        }
+        @keyframes popIn {
+            from { transform: scale(0.8); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
+        }
+        .popup .popup-icon { font-size: 64px; margin-bottom: 16px; }
+        .popup h3 { font-size: 20px; margin-bottom: 8px; }
+        .popup p { color: var(--text-light); margin-bottom: 24px; }
+        .popup-buttons { display: flex; gap: 12px; }
+        .popup-btn {
+            flex: 1;
+            padding: 14px;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .popup-btn:active { transform: scale(0.96); }
+        .popup-btn.confirm { background: var(--primary); color: white; }
+        .popup-btn.cancel { background: #F0F0F0; color: var(--text); }
+
+        .success-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,184,148,0.95);
+            z-index: 200;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            color: white;
+        }
+        .success-overlay.active { display: flex; animation: fadeIn 0.3s; }
+        .success-overlay .check {
+            font-size: 80px;
+            margin-bottom: 16px;
+            animation: bounceIn 0.5s ease;
+        }
+        .success-overlay h2 { font-size: 24px; }
+        @keyframes bounceIn {
+            0% { transform: scale(0); }
+            50% { transform: scale(1.2); }
+            100% { transform: scale(1); }
+        }
+
+        .history-header {
+            margin-bottom: 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .history-header h1 { font-size: 26px; }
+        .clear-btn {
+            background: var(--danger);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            padding: 8px 14px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .clear-btn:active { transform: scale(0.95); }
+        .history-list { display: flex; flex-direction: column; gap: 8px; }
+        .history-date {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-light);
+            margin-top: 16px;
+            margin-bottom: 4px;
+        }
+        .history-item {
+            background: var(--card);
+            border-radius: 12px;
+            padding: 14px 16px;
+            box-shadow: var(--shadow);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .hi-icon {
+            font-size: 28px;
+            width: 44px;
+            height: 44px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 12px;
+            background: #F8F8F8;
+        }
+        .hi-info { flex: 1; }
+        .hi-action { font-size: 15px; font-weight: 600; }
+        .hi-who { font-size: 13px; color: var(--text-light); }
+        .hi-time { font-size: 13px; color: var(--text-light); }
+
+        .stat-card {
+            background: var(--card);
+            border-radius: var(--radius);
+            padding: 20px;
+            box-shadow: var(--shadow);
+            margin-bottom: 12px;
+        }
+        .stat-card h3 { font-size: 14px; color: var(--text-light); margin-bottom: 12px; }
+        .stat-row {
+            display: flex;
+            align-items: center;
+            padding: 6px 0;
+            font-size: 14px;
+        }
+        .stat-name { min-width: 40px; }
+        .stat-bar-wrap {
+            flex: 1;
+            height: 8px;
+            background: #F0F0F0;
+            border-radius: 4px;
+            overflow: hidden;
+            margin: 0 12px;
+        }
+        .stat-bar {
+            height: 100%;
+            border-radius: 4px;
+            transition: width 0.5s ease;
+        }
+        .stat-bar.user1 { background: var(--primary); }
+        .stat-bar.user2 { background: var(--secondary); }
+        .stat-bar.user3 { background: var(--third); }
+
+        .empty {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--text-light);
+        }
+        .empty-icon { font-size: 64px; margin-bottom: 16px; }
+
+        /* Статус подключения */
+        .sync-status {
+            font-size: 11px;
+            padding: 3px 8px;
+            border-radius: 10px;
+            display: inline-block;
+            margin-top: 4px;
+        }
+        .sync-online { background: #E8F8F5; color: var(--success); }
+        .sync-offline { background: #FFE8E8; color: var(--danger); }
+
+        .bottom-nav {
+            position: fixed;
+            bottom: 0; left: 0; right: 0;
+            background: var(--card);
+            display: none;
+            justify-content: space-around;
+            padding: 10px 0;
+            padding-bottom: max(10px, env(safe-area-inset-bottom));
+            box-shadow: 0 -4px 20px rgba(0,0,0,0.06);
+            z-index: 50;
+        }
+        .bottom-nav.visible { display: flex; }
+        .nav-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 11px;
+            color: var(--text-light);
+            padding: 4px 16px;
+        }
+        .nav-item.active { color: var(--primary); }
+        .nav-item .nav-icon { font-size: 24px; }
+    </style>
+</head>
+<body>
+
+    <!-- ======= ПРИВЕТСТВИЕ ======= -->
+    <div class="screen welcome active" id="welcomeScreen">
+        <div class="welcome-logo">🐾</div>
+        <h1>TapeTime</h1>
+        <p>Трекер ухода за Тейпом</p>
+        <div class="welcome-subtitle">Кто ты?</div>
+        <div class="user-buttons" id="userButtons"></div>
+    </div>
+
+    <!-- ======= ГЛАВНАЯ ======= -->
+    <div class="screen" id="mainScreen">
+        <div class="header">
+            <div class="header-left">
+                <h1>TapeTime 🐾</h1>
+                <p id="todayDate"></p>
+                <span class="sync-status" id="syncStatus"></span>
+            </div>
+            <div class="user-badge" id="badge" onclick="showScreen('welcomeScreen')"></div>
+        </div>
+
+        <div class="dog-card">
+            <div class="dog-avatar">
+                <img src="tape-avatar.png" alt="Тейп">
+            </div>
+            <div class="dog-name">Тейп</div>
+            <div class="dog-status" id="dogStatus">Добавьте запись!</div>
+        </div>
+
+        <div class="status-grid" id="statusGrid"></div>
+
+        <div class="actions-title">Что сделал(а)?</div>
+        <div class="actions-grid">
+            <button class="action-btn" onclick="confirmAction('feed')">
+                <span class="action-icon">🍖</span> Покормил(а)
+            </button>
+            <button class="action-btn" onclick="confirmAction('walk')">
+                <span class="action-icon">🦮</span> Погулял(а)
+            </button>
+            <button class="action-btn" onclick="confirmAction('medicine')">
+                <span class="action-icon">💊</span> Лекарство
+            </button>
+            <button class="action-btn" onclick="confirmAction('play')">
+                <span class="action-icon">🎾</span> Поиграл(а)
+            </button>
+        </div>
+    </div>
+
+    <!-- ======= ИСТОРИЯ ======= -->
+    <div class="screen" id="historyScreen">
+        <div class="history-header">
+            <h1>📋 История</h1>
+            <button class="clear-btn" onclick="confirmClear()">🗑 Очистить</button>
+        </div>
+        <div class="history-list" id="historyList"></div>
+    </div>
+
+    <!-- ======= СТАТИСТИКА ======= -->
+    <div class="screen" id="statsScreen">
+        <div class="history-header"><h1>📊 Статистика</h1></div>
+        <div id="statsContent"></div>
+    </div>
+
+    <!-- ======= ПОПАП ======= -->
+    <div class="popup-overlay" id="confirmPopup">
+        <div class="popup">
+            <div class="popup-icon" id="popupIcon">🍖</div>
+            <h3 id="popupTitle"></h3>
+            <p id="popupSub"></p>
+            <div class="popup-buttons">
+                <button class="popup-btn cancel" onclick="closePopup()">Нет</button>
+                <button class="popup-btn confirm" onclick="doAction()">Да!</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ======= ПОПАП ОЧИСТКИ ======= -->
+    <div class="popup-overlay" id="clearPopup">
+        <div class="popup">
+            <div class="popup-icon">🗑</div>
+            <h3>Очистить историю?</h3>
+            <p>Все записи будут удалены навсегда</p>
+            <div class="popup-buttons">
+                <button class="popup-btn cancel" onclick="closeClearPopup()">Отмена</button>
+                <button class="popup-btn confirm" onclick="clearAll()" style="background:var(--danger)">Удалить</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ======= УСПЕХ ======= -->
+    <div class="success-overlay" id="successOverlay">
+        <div class="check">✅</div>
+        <h2 id="successText">Записано!</h2>
+    </div>
+
+    <!-- ======= НАВИГАЦИЯ ======= -->
+    <div class="bottom-nav" id="bottomNav">
+        <button class="nav-item active" onclick="showScreen('mainScreen')" data-s="mainScreen">
+            <span class="nav-icon">🏠</span> Главная
+        </button>
+        <button class="nav-item" onclick="showScreen('historyScreen')" data-s="historyScreen">
+            <span class="nav-icon">📋</span> История
+        </button>
+        <button class="nav-item" onclick="showScreen('statsScreen')" data-s="statsScreen">
+            <span class="nav-icon">📊</span> Стата
+        </button>
+    </div>
+
+<script>
+// =============================================
+//  НАСТРОЙКИ
+// =============================================
+const USERS = {
+    user1: { name: 'Первый волк',    emoji: '👩' },
+    user2: { name: 'Второй волк', emoji: '👦' },
+    user3: { name: 'Мама волков', emoji: '👵' }
+};
+
+const ACTIONS = {
+    feed:     { icon: '🍖', label: 'Кормление',  verb: 'покормил(а)',       hours: 8  },
+    walk:     { icon: '🦮', label: 'Прогулка',    verb: 'погулял(а) с',     hours: 8  },
+    medicine: { icon: '💊', label: 'Лекарство',   verb: 'дал(а) лекарство', hours: 24 },
+    play:     { icon: '🎾', label: 'Игра',        verb: 'поиграл(а) с',     hours: 12 }
+};
+
+// =============================================
+//  FIREBASE — ВСТАВЬ СЮДА СВОЙ КОНФИГ
+// =============================================
+const firebaseConfig = {
+    apiKey: "AIzaSyB8GEobqso8yew11MKPcNygigwdD6yB5bo",
+    authDomain: "tapetime-bb353.firebaseapp.com",
+    databaseURL: "https://tapetime-bb353-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "tapetime-bb353",
+    storageBucket: "tapetime-bb353.firebasestorage.app",
+    messagingSenderId: "1047615950354",
+    appId: "1:1047615950354:web:4e7ae0db4a863b6100d2cb"
+};
+
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+const actionsRef = db.ref('actions');
+
+// =============================================
+//  СОСТОЯНИЕ
+// =============================================
+let currentUser = localStorage.getItem('tt_user') || null;
+let pendingAction = null;
+let allActions = [];
+
+// =============================================
+//  СЛУШАЕМ FIREBASE (реальное время!)
+// =============================================
+actionsRef.orderByChild('timestamp').on('value', snap => {
+    allActions = [];
+    snap.forEach(child => {
+        allActions.push({ id: child.key, ...child.val() });
+    });
+    allActions.sort((a, b) => b.timestamp - a.timestamp);
+    updateUI();
+});
+
+// Статус подключения
+db.ref('.info/connected').on('value', snap => {
+    const el = document.getElementById('syncStatus');
+    if (snap.val() === true) {
+        el.textContent = '🟢 Онлайн';
+        el.className = 'sync-status sync-online';
+    } else {
+        el.textContent = '🔴 Офлайн';
+        el.className = 'sync-status sync-offline';
+    }
+});
+
+// =============================================
+//  ИНИЦИАЛИЗАЦИЯ
+// =============================================
+function init() {
+    const btns = document.getElementById('userButtons');
+    btns.innerHTML = `
+        <button class="user-btn u1" onclick="selectUser('user1')">
+            ${USERS.user1.emoji} ${USERS.user1.name}
+        </button>
+        <button class="user-btn u2" onclick="selectUser('user2')">
+            ${USERS.user2.emoji} ${USERS.user2.name}
+        </button>
+        <button class="user-btn u3" onclick="selectUser('user3')">
+            ${USERS.user3.emoji} ${USERS.user3.name}
+        </button>
+    `;
+
+    if (currentUser) showScreen('mainScreen');
+}
+
+// =============================================
+//  НАВИГАЦИЯ
+// =============================================
+function selectUser(id) {
+    currentUser = id;
+    localStorage.setItem('tt_user', id);
+    showScreen('mainScreen');
+}
+
+function showScreen(id) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+
+    const nav = document.getElementById('bottomNav');
+    nav.classList.toggle('visible', id !== 'welcomeScreen');
+
+    document.querySelectorAll('.nav-item').forEach(n =>
+        n.classList.toggle('active', n.dataset.s === id)
+    );
+
+    if (currentUser) {
+        const b = document.getElementById('badge');
+        b.textContent = `${USERS[currentUser].emoji} ${USERS[currentUser].name}`;
+        b.className = `user-badge ${currentUser}`;
+    }
+
+    document.getElementById('todayDate').textContent = fmtDate(new Date());
+    updateUI();
+}
+
+// =============================================
+//  ДЕЙСТВИЯ
+// =============================================
+function confirmAction(action) {
+    pendingAction = action;
+    const a = ACTIONS[action];
+    document.getElementById('popupIcon').textContent = a.icon;
+    document.getElementById('popupTitle').textContent =
+        `${USERS[currentUser].name} ${a.verb} Тейпа?`;
+    document.getElementById('popupSub').textContent = 'Записать действие';
+    document.getElementById('confirmPopup').classList.add('active');
+}
+
+function closePopup() {
+    document.getElementById('confirmPopup').classList.remove('active');
+    pendingAction = null;
+}
+
+function doAction() {
+    const savedAction = pendingAction;
+    document.getElementById('confirmPopup').classList.remove('active');
+
+    const entry = {
+        action: savedAction,
+        user: currentUser,
+        timestamp: Date.now()
+    };
+
+    // Отправляем в Firebase — автоматически появится у всех!
+    actionsRef.push(entry);
+
+    // Анимация успеха
+    const a = ACTIONS[savedAction];
+    document.getElementById('successText').textContent =
+        `${a.icon} ${USERS[currentUser].name} ${a.verb} Тейпа!`;
+    const ov = document.getElementById('successOverlay');
+    ov.classList.add('active');
+    setTimeout(() => ov.classList.remove('active'), 1500);
+
+    pendingAction = null;
+}
+
+// =============================================
+//  ОЧИСТКА ИСТОРИИ
+// =============================================
+function confirmClear() {
+    document.getElementById('clearPopup').classList.add('active');
+}
+
+function closeClearPopup() {
+    document.getElementById('clearPopup').classList.remove('active');
+}
+
+function clearAll() {
+    actionsRef.remove();
+    closeClearPopup();
+}
+
+// =============================================
+//  ОБНОВЛЕНИЕ ИНТЕРФЕЙСА
+// =============================================
+function updateUI() {
+    updateStatus();
+    updateDogStatus();
+    updateHistory();
+    updateStats();
+}
+
+function updateStatus() {
+    const grid = document.getElementById('statusGrid');
+    let html = '';
+
+    for (const [key, act] of Object.entries(ACTIONS)) {
+        const last = allActions.find(a => a.action === key);
+        let timeText = 'Ещё не было';
+        let whoText = '';
+        let barClass = 'bar-bad';
+
+        if (last) {
+            const h = (Date.now() - last.timestamp) / 36e5;
+            timeText = timeAgo(last.timestamp);
+            whoText = USERS[last.user]?.name || '';
+            barClass = h > act.hours ? 'bar-bad' : h > act.hours * 0.7 ? 'bar-warn' : 'bar-good';
+        }
+
+        html += `
+            <div class="status-card">
+                <div class="bar ${barClass}"></div>
+                <div class="icon">${act.icon}</div>
+                <div class="label">${act.label}</div>
+                <div class="time">${timeText}</div>
+                ${whoText ? `<div class="who">${whoText}</div>` : ''}
+            </div>`;
+    }
+    grid.innerHTML = html;
+}
+
+function updateDogStatus() {
+    const el = document.getElementById('dogStatus');
+    const lastF = allActions.find(a => a.action === 'feed');
+    const lastW = allActions.find(a => a.action === 'walk');
+
+    if (!lastF && !lastW) {
+        el.textContent = 'Добавьте первую запись!';
+        el.className = 'dog-status status-warn';
+        return;
+    }
+
+    let worst = 0;
+    if (lastF) worst = Math.max(worst, (Date.now() - lastF.timestamp) / 36e5);
+    else worst = 99;
+    if (lastW) worst = Math.max(worst, (Date.now() - lastW.timestamp) / 36e5);
+    else worst = 99;
+
+    if (worst > 10) {
+        el.textContent = 'Тейпу нужно внимание! 😟';
+        el.className = 'dog-status status-bad';
+    } else if (worst > 6) {
+        el.textContent = 'Скоро пора! ⏰';
+        el.className = 'dog-status status-warn';
+    } else {
+        el.textContent = 'Тейп доволен! 😊';
+        el.className = 'dog-status status-good';
+    }
+}
+
+function updateHistory() {
+    const list = document.getElementById('historyList');
+    if (!allActions.length) {
+        list.innerHTML = '<div class="empty"><div class="empty-icon">📋</div><p>Пока нет записей</p></div>';
+        return;
+    }
+
+    let html = '', lastDate = '';
+    allActions.forEach(e => {
+        const d = new Date(e.timestamp);
+        const ds = fmtDate(d);
+        const act = ACTIONS[e.action] || {};
+        const usr = USERS[e.user] || {};
+
+        if (ds !== lastDate) { html += `<div class="history-date">${ds}</div>`; lastDate = ds; }
+
+        html += `
+            <div class="history-item">
+                <div class="hi-icon">${act.icon || '❓'}</div>
+                <div class="hi-info">
+                    <div class="hi-action">${act.label || '?'}</div>
+                    <div class="hi-who">${usr.emoji || ''} ${usr.name || ''}</div>
+                </div>
+                <div class="hi-time">${fmtTime(d)}</div>
+            </div>`;
+    });
+    list.innerHTML = html;
+}
+
+function updateStats() {
+    const el = document.getElementById('statsContent');
+    if (!allActions.length) {
+        el.innerHTML = '<div class="empty"><div class="empty-icon">📊</div><p>Пока нет данных</p></div>';
+        return;
+    }
+
+    const cnt = { user1: 0, user2: 0, user3: 0 };
+    const byAct = {};
+    allActions.forEach(e => {
+        if (cnt[e.user] !== undefined) cnt[e.user]++;
+        if (!byAct[e.action]) byAct[e.action] = { user1: 0, user2: 0, user3: 0 };
+        if (byAct[e.action][e.user] !== undefined) byAct[e.action][e.user]++;
+    });
+
+    const tot = cnt.user1 + cnt.user2 + cnt.user3 || 1;
+
+    let html = `<div class="stat-card"><h3>Всего действий</h3>
+        ${statRow('user1', cnt.user1, tot)}
+        ${statRow('user2', cnt.user2, tot)}
+        ${statRow('user3', cnt.user3, tot)}
+    </div>`;
+
+    for (const [key, act] of Object.entries(ACTIONS)) {
+        const c = byAct[key];
+        if (!c) continue;
+        const t = c.user1 + c.user2 + c.user3 || 1;
+        html += `<div class="stat-card"><h3>${act.icon} ${act.label}</h3>
+            ${statRow('user1', c.user1, t)}
+            ${statRow('user2', c.user2, t)}
+            ${statRow('user3', c.user3, t)}
+        </div>`;
+    }
+    el.innerHTML = html;
+}
+
+function statRow(uid, count, total) {
+    const u = USERS[uid];
+    return `<div class="stat-row">
+        <span class="stat-name">${u.emoji}</span>
+        <div class="stat-bar-wrap">
+            <div class="stat-bar ${uid}" style="width:${count/total*100}%"></div>
+        </div>
+        <strong>${count}</strong>
+    </div>`;
+}
+
+// =============================================
+//  ХЕЛПЕРЫ
+// =============================================
+function timeAgo(ts) {
+    const s = Math.floor((Date.now() - ts) / 1000);
+    if (s < 60) return 'Только что';
+    if (s < 3600) return `${Math.floor(s/60)} мин назад`;
+    if (s < 86400) { const h = Math.floor(s/3600); return `${h} ${plur(h,'час','часа','часов')} назад`; }
+    const d = Math.floor(s/86400);
+    return `${d} ${plur(d,'день','дня','дней')} назад`;
+}
+
+function plur(n, a, b, c) {
+    const m10 = n%10, m100 = n%100;
+    if (m100 >= 11 && m100 <= 19) return c;
+    if (m10 === 1) return a;
+    if (m10 >= 2 && m10 <= 4) return b;
+    return c;
+}
+
+function fmtDate(d) {
+    const today = new Date();
+    const yest = new Date(today); yest.setDate(yest.getDate()-1);
+    if (d.toDateString() === today.toDateString()) return 'Сегодня';
+    if (d.toDateString() === yest.toDateString()) return 'Вчера';
+    return d.toLocaleDateString('ru-RU', { day:'numeric', month:'long' });
+}
+
+function fmtTime(d) {
+    return d.toLocaleTimeString('ru-RU', { hour:'2-digit', minute:'2-digit' });
+}
+
+setInterval(updateUI, 60000);
+
+if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+}
+
+init();
+</script>
+
+</body>
+</html>
